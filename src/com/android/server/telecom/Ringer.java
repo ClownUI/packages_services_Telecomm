@@ -42,6 +42,7 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.vibrator.persistence.ParsedVibration;
 import android.os.vibrator.persistence.VibrationXmlParser;
+import android.provider.Settings;
 import android.telecom.Log;
 import android.telecom.TelecomManager;
 import android.util.Pair;
@@ -170,6 +171,8 @@ public class Ringer {
 
     private static final VibrationAttributes VIBRATION_ATTRIBUTES =
             new VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_RINGTONE).build();
+    private static final VibrationAttributes VIBRATION_INCALL_ATTRIBUTES =
+            new VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_ACCESSIBILITY).build();
 
     private static VolumeShaper.Configuration mVolumeShaperConfig;
 
@@ -597,6 +600,11 @@ public class Ringer {
 
         stopRinging();
 
+        if (Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.VIBRATE_ON_CALLWAITING, 0, UserHandle.USER_CURRENT) == 1) {
+            vibrate(200, 300, 500);
+        }
+
         if (mCallWaitingPlayer == null) {
             Log.addEvent(call, LogUtils.Events.START_CALL_WAITING_TONE, reason);
             mCallWaitingCall = call;
@@ -855,5 +863,15 @@ public class Ringer {
             VibrationEffectProxy vibrationEffectProxy) {
         return vibrationEffectProxy.createWaveform(SIMPLE_VIBRATION_PATTERN,
                 SIMPLE_VIBRATION_AMPLITUDE, REPEAT_SIMPLE_VIBRATION_AT);
+    }
+
+    public void vibrate(int v1, int p1, int v2) {
+        if (mVibrator != null && mVibrator.hasVibrator()) {
+            long[] pattern = new long[] {
+                0, v1, p1, v2
+            };
+            mVibrator.vibrate(
+                VibrationEffect.createWaveform(pattern, -1), VIBRATION_INCALL_ATTRIBUTES);
+        }
     }
 }

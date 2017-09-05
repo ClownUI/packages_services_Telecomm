@@ -48,9 +48,14 @@ import android.os.RemoteException;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.VibrationAttributes;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.provider.Settings;
 import android.telecom.CallAudioState;
 import android.telecom.CallEndpoint;
 import android.telecom.ConnectionService;
+import android.telecom.DisconnectCause;
 import android.telecom.InCallService;
 import android.telecom.Log;
 import android.telecom.Logging.Runnable;
@@ -95,6 +100,9 @@ public class InCallController extends CallsManagerListenerBase implements
     public static final String NOTIFICATION_TAG = InCallController.class.getSimpleName();
     public static final int IN_CALL_SERVICE_NOTIFICATION_ID = 3;
     private AnomalyReporterAdapter mAnomalyReporter = new AnomalyReporterAdapterImpl();
+
+    private static final VibrationAttributes VIBRATION_INCALL_ATTRIBUTES =
+            new VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_ACCESSIBILITY).build();
 
     /**
      * Anomaly Report UUIDs and corresponding error descriptions specific to InCallController.
@@ -1665,7 +1673,29 @@ public class InCallController extends CallsManagerListenerBase implements
         Log.i(this, "onCallStateChanged: Call state changed for TC@%s: %s -> %s", call.getId(),
                 CallState.toString(oldState), CallState.toString(newState));
         maybeTrackMicrophoneUse(isMuted());
+
+        if ((oldState == CallState.RINGING || oldState == CallState.DIALING) &&
+                (newState == CallState.ACTIVE || newState == CallState.ANSWERED)) {
+            boolean vibrateOnConnect = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.VIBRATE_ON_CONNECT, 0, UserHandle.USER_CURRENT) == 1;
+            if (vibrateOnConnect) vibrate(100, 200, 0);
+        } else if (oldState == CallState.ACTIVE && newState == CallState.DISCONNECTED) {
+            boolean vibrateOnDisconnect = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.VIBRATE_ON_DISCONNECT, 0, UserHandle.USER_CURRENT) == 1;
+            if (vibrateOnDisconnect) vibrate(100, 200, 0);
+        }
         updateCall(call);
+    }
+
+    public void vibrate(int v1, int p1, int v2) {
+        Vibrator vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator != null && vibrator.hasVibrator()) {
+            long[] pattern = new long[] {
+                0, v1, p1, v2
+            };
+            vibrator.vibrate(
+                VibrationEffect.createWaveform(pattern, -1), VIBRATION_INCALL_ATTRIBUTES);
+        }
     }
 
     @Override
