@@ -58,8 +58,6 @@ import com.android.server.telecom.callfiltering.CallFilteringResult;
 import com.android.server.telecom.flags.FeatureFlags;
 import com.android.server.telecom.flags.Flags;
 
-import org.lineageos.lib.phone.SensitivePhoneNumbers;
-
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
@@ -127,7 +125,6 @@ public final class CallLogManager extends CallsManagerListenerBase {
     private Country mCurrentCountry;
     private String mCurrentCountryIso;
     private HandlerExecutor mCountryCodeExecutor;
-    private SensitivePhoneNumbers mSensitivePhoneNumbers;
 
     private final FeatureFlags mFeatureFlags;
 
@@ -142,7 +139,6 @@ public final class CallLogManager extends CallsManagerListenerBase {
         mAnomalyReporterAdapter = anomalyReporterAdapter;
         mCountryCodeExecutor = new HandlerExecutor(new Handler(Looper.getMainLooper()));
         mFeatureFlags = featureFlags;
-        mSensitivePhoneNumbers = SensitivePhoneNumbers.getInstance();
     }
 
     @Override
@@ -465,20 +461,16 @@ public final class CallLogManager extends CallsManagerListenerBase {
         boolean okToLogEmergencyNumber = false;
         CarrierConfigManager configManager = (CarrierConfigManager) mContext.getSystemService(
                 Context.CARRIER_CONFIG_SERVICE);
-        int subId = mPhoneAccountRegistrar.getSubscriptionIdForPhoneAccount(accountHandle);
-        PersistableBundle configBundle = configManager.getConfigForSubId(subId);
+        PersistableBundle configBundle = configManager.getConfigForSubId(
+                mPhoneAccountRegistrar.getSubscriptionIdForPhoneAccount(accountHandle));
         if (configBundle != null) {
             okToLogEmergencyNumber = configBundle.getBoolean(
                     CarrierConfigManager.KEY_ALLOW_EMERGENCY_NUMBERS_IN_CALL_LOG_BOOL);
         }
 
-        // Don't log sensitive numbers.
-        boolean isSensitiveNumber = mSensitivePhoneNumbers.isSensitiveNumber(mContext, number,
-                subId);
-
         // Don't log emergency numbers if the device doesn't allow it.
         return (!isEmergency || okToLogEmergencyNumber)
-                && !isUnloggableNumber(number, configBundle) && !isSensitiveNumber;
+                && !isUnloggableNumber(number, configBundle);
     }
 
     private boolean isUnloggableNumber(String callNumber, PersistableBundle carrierConfig) {
